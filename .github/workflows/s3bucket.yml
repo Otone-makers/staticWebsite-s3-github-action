@@ -1,0 +1,69 @@
+name: Run Tests
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@master
+        with:
+          aws-region: us-east-2
+          role-to-assume: arn:aws:iam::943169211906:role/Githubconnect
+          role-session-name: githubworkflowsession
+          audience: sts.amazonaws.com
+
+      - name: Create S3 Bucket with Website Configuration
+        run: |
+          aws s3api create-bucket \
+            --bucket ottonelearning-github-actions-website \
+            --region us-east-1
+
+          aws s3api put-public-access-block \
+            --bucket ottonelearning-github-actions-website \
+            --public-access-block-configuration "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
+
+          aws s3api put-bucket-website \
+            --bucket ottonelearning-github-actions-website \
+            --website-configuration '{
+                "IndexDocument": {
+                    "Suffix": "index.html"
+                },
+                "ErrorDocument": {
+                    "Key": "error.html"
+                }
+            }'
+
+          # Add a bucket policy to allow public read access
+          aws s3api put-bucket-policy \
+            --bucket ottonelearning-github-actions-website \
+            --policy '{
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Principal": "*",
+                        "Action": "s3:GetObject",
+                        "Resource": "arn:aws:s3:::ottonelearning-github-actions-website/*"
+                    }
+                ]
+            }'
+            
+      - name: Display Website URL
+        run: |
+          echo "Your website is hosted at http://ottonelearning-github-actions-website.s3-website-us-east-1.amazonaws.com"
+
+      - name: Deploy static site to S3 bucket
+        run: |
+          aws s3 sync ./public/ s3://ottonelearning-github-actions-website --delete
