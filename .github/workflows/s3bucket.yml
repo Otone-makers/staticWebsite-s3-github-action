@@ -1,8 +1,7 @@
 name: Run Tests
 on:
-  push:
-    branches:
-      - main
+  repository_dispatch:
+    types: [deploy]
 
 jobs:
   deploy:
